@@ -1,0 +1,6 @@
+string_val: TESTSTRING
+int_val: 666 
+float_val: 2.72
+bool_val: true
+nested:
+  nested_string_val: NESTEDSTRING
