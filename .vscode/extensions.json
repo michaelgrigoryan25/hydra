@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "golang.go",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker"
+    ],
+     "unwantedRecommendations": [
+         "golang.go-nightly"
+     ]
+}

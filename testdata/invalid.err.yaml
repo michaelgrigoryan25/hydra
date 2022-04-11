@@ -1,0 +1,3 @@
+allow:
+   acl: loopback
+   acl: admin
