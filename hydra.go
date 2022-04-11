@@ -31,6 +31,7 @@ package hydra
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -71,73 +72,71 @@ func (h *Hydra) readAndParse(path string, dst any) error {
 }
 
 // This function will parse environment variables for the struct fields
-// which present 'env=VALUE' key-value pair in their hydra struct tag
+// which present 'env=VALUE' key-value pair in their hydra struct tag.
 func (h *Hydra) parseEnv(dst any) error {
-	typeOf := reflect.TypeOf(dst)
-	if typeOf.Kind() != reflect.Pointer || typeOf.Elem().Kind() != reflect.Struct {
-		return errors.New("destination argument must be a pointer to struct, but it is a " + typeOf.Kind().String())
+	dstReflection := reflect.TypeOf(dst)
+	if dstReflection.Kind() != reflect.Pointer || dstReflection.Elem().Kind() != reflect.Struct {
+		err := fmt.Sprintf("destination must be a pointer to a struct. received: %v", dstReflection.Kind().String())
+		return errors.New(err)
 	}
 
-	val := reflect.ValueOf(dst).Elem()
-
-	fields := reflect.VisibleFields(val.Type())
+	dstValue := reflect.ValueOf(dst).Elem()
+	fields := reflect.VisibleFields(dstValue.Type())
 
 	for _, f := range fields {
-		//Parse recursively in case of nested structs
+		// Handling nested structs recursively
 		if f.Type.Kind() == reflect.Struct {
-			err := h.parseEnv(val.FieldByIndex(f.Index).Addr().Interface())
-			if err != nil {
+			if err := h.parseEnv(dstValue.FieldByIndex(f.Index).Addr().Interface()); err != nil {
 				return err
 			}
-			continue
 		}
-		if envVarName, ok := getHydraTag(f.Tag, "env"); ok {
-			envVar := os.Getenv(envVarName)
-			//skip if environment variable is empty
-			if envVar == "" {
-				continue
+
+		if key, ok := getHydraTag(f.Tag, "env"); ok {
+			// Skipping the environment variable if it is empty
+			if keyValue := os.Getenv(key); keyValue != "" {
+				// Converting the string value to its corresponding type
+				switch f.Type.Kind() {
+				case reflect.String:
+					dstValue.FieldByIndex(f.Index).SetString(keyValue)
+				case reflect.Int:
+					value, err := strconv.ParseInt(keyValue, 10, 64)
+					if err != nil {
+						return err
+					}
+
+					dstValue.FieldByIndex(f.Index).SetInt(value)
+				case reflect.Float64, reflect.Float32:
+					value, err := strconv.ParseFloat(keyValue, 64)
+					if err != nil {
+						return err
+					}
+
+					dstValue.FieldByIndex(f.Index).SetFloat(value)
+				case reflect.Bool:
+					value, err := strconv.ParseBool(keyValue)
+					if err != nil {
+						return err
+					}
+
+					dstValue.FieldByIndex(f.Index).SetBool(value)
+				default:
+					// Defaulting to a string if the field type is not supported by reflect.
+					dstValue.FieldByIndex(f.Index).SetString(fmt.Sprint(keyValue))
+				}
 			}
-			//convert the string value to corresponding type
-			switch f.Type.Kind() {
-			case reflect.String:
-				val.FieldByIndex(f.Index).SetString(envVar)
-			case reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8:
-				value, err := strconv.ParseInt(envVar, 10, 64)
-				if err != nil {
-					return err
-				} else {
-					val.FieldByIndex(f.Index).SetInt(value)
-				}
-			case reflect.Float64, reflect.Float32:
-				value, err := strconv.ParseFloat(envVar, 64)
-				if err != nil {
-					return err
-				} else {
-					val.FieldByIndex(f.Index).SetFloat(value)
-
-				}
-			case reflect.Bool:
-				value, err := strconv.ParseBool(envVar)
-				if err != nil {
-					return err
-				} else {
-					val.FieldByIndex(f.Index).SetBool(value)
-
-				}
-			}
-
 		}
 	}
+
 	return nil
 }
 
 // This function checks if the given key exists, and extracts the value if there is any
 // from the struct field's hydra struct tag.
 func getHydraTag(field reflect.StructTag, tag string) (string, bool) {
-	keyValues := strings.Split(field.Get("hydra"), ";")
-	for _, t := range keyValues {
+	kv := strings.Split(field.Get("hydra"), ";")
+	for _, t := range kv {
 		split := strings.Split(t, "=")
-		//check if it is only key or a key-value pair
+		// Check if it is only key or a key-value pair
 		if len(split) > 1 {
 			if split[0] == tag {
 				return split[1], true
@@ -148,6 +147,7 @@ func getHydraTag(field reflect.StructTag, tag string) (string, bool) {
 			}
 		}
 	}
+
 	return "", false
 }
 

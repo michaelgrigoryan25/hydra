@@ -1,15 +1,3 @@
-package hydra_test
-
-import (
-	"os"
-	"strconv"
-	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"polygon.am/hydra"
-)
-
 // BSD 3-Clause License
 
 // Copyright (c) 2021, Michael Grigoryan
@@ -39,75 +27,110 @@ import (
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+package hydra_test
 
-type TestConfig struct {
-	StringVal string       `yaml:"string_val" hydra:"env=STRING_VAL"`
-	IntVal    int          `yaml:"int_val" hydra:"env=INT_VAL"`
-	FloatVar  float64      `yaml:"float_val" hydra:"env=FLOAT_VAL"`
-	BoolVar   bool         `yaml:"bool_val" hydra:"env=BOOL_VAL"`
-	Nested    NestedStruct `yaml:"nested"`
-}
+import (
+	"fmt"
+	"os"
+	"strings"
+	"testing"
 
-type NestedStruct struct {
-	NestedStringVal string `yaml:"nested_string_val" hydra:"env=NESTED_STRING_VAL"`
+	"github.com/stretchr/testify/assert"
+	"polygon.am/hydra"
+)
+
+const TestConfigLookupPath = "testdata/"
+
+type SampleConfig struct {
+	Int       int     `yaml:"int" hydra:"env=INT_ENV_VAR"`
+	Bool      bool    `yaml:"bool" hydra:"env=BOOL_ENV_VAR"`
+	Float     float64 `yaml:"float" hydra:"env=FLOAT_ENV_VAR"`
+	String    string  `yaml:"string" hydra:"env=STRING_ENV_VAR"`
+	Subconfig struct {
+		Nested string `yaml:"nested" hydra:"env=NESTED_ENV_VAR"`
+	} `yaml:"subconfig"`
 }
 
 func TestLoadConfig(t *testing.T) {
 	h := hydra.Hydra{Config: hydra.Config{
-		Filename: "test.yaml",
-		Paths:    []string{"."},
+		Filename: "test-load.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
 	}}
 
-	expected := TestConfig{
-		StringVal: "TESTSTRING",
-		IntVal:    666,
-		FloatVar:  2.72,
-		BoolVar:   true,
-		Nested:    NestedStruct{NestedStringVal: "NESTEDSTRING"},
+	expected := SampleConfig{
+		Bool:   true,
+		Int:    12345,
+		String: "test",
+		Float:  1.2345,
+		Subconfig: struct {
+			Nested string "yaml:\"nested\" hydra:\"env=NESTED_ENV_VAR\""
+		}{
+			Nested: "test-nested",
+		},
 	}
 
-	cfg := TestConfig{}
-	_, err := h.Load(&cfg)
+	var config SampleConfig
+	_, err := h.Load(&config)
 	assert.NoError(t, err)
-
-	assert.Equal(t, expected, cfg)
+	assert.Equal(t, expected, config)
 }
 
 func TestParseEnv(t *testing.T) {
 	h := hydra.Hydra{Config: hydra.Config{
-		Filename: "test.yaml",
-		Paths:    []string{"."},
+		Filename: "test-load.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
 	}}
 
-	expectedString := "parsed_from_environment"
-	expectedInt := 99999
-	expectedFloat := 3.14
-	expectedBool := true
-	expectedNestedString := "NESTED"
-
-	expectedCfg := TestConfig{
-		StringVal: expectedString,
-		IntVal:    expectedInt,
-		FloatVar:  expectedFloat,
-		BoolVar:   expectedBool,
-		Nested:    NestedStruct{NestedStringVal: expectedNestedString},
+	type ExpectedValue struct {
+		key   string
+		value any
 	}
 
-	cfg := TestConfig{}
+	expectedValues := []ExpectedValue{
+		{
+			value: "test",
+			key:   "STRING_ENV_VAR",
+		},
+		{
+			value: 12345,
+			key:   "INT_ENV_VAR",
+		},
+		{
+			value: 1.2345,
+			key:   "FLOAT_ENV_VAR",
+		},
+		{
+			value: true,
+			key:   "BOOL_ENV_VAR",
+		},
+		{
+			value: "test-nested",
+			key:   "NESTED_ENV_VAR",
+		},
+	}
 
-	os.Setenv("STRING_VAL", expectedString)
-	os.Setenv("INT_VAL", strconv.Itoa(expectedInt))
-	os.Setenv("FLOAT_VAL", strconv.FormatFloat(expectedFloat, 'f', 2, 64))
-	os.Setenv("BOOL_VAL", strconv.FormatBool(expectedBool))
-	os.Setenv("NESTED_STRING_VAL", expectedNestedString)
+	for _, v := range expectedValues {
+		os.Setenv(v.key, fmt.Sprint(v.value))
+	}
 
-	_, err := h.Load(&cfg)
+	expected := SampleConfig{
+		String: expectedValues[0].value.(string),
+		Int:    expectedValues[1].value.(int),
+		Float:  expectedValues[2].value.(float64),
+		Bool:   expectedValues[3].value.(bool),
+		Subconfig: struct {
+			Nested string "yaml:\"nested\" hydra:\"env=NESTED_ENV_VAR\""
+		}{
+			Nested: expectedValues[4].value.(string),
+		},
+	}
+
+	var config SampleConfig
+	_, err := h.Load(&config)
 
 	assert.NoError(t, err)
-	assert.Equal(t, expectedCfg, cfg)
+	assert.Equal(t, expected, config)
 }
-
-const TestConfigLookupPath = "testdata/"
 
 func TestLoadAndParseConfigs(t *testing.T) {
 	type EntryMetadata struct {
@@ -143,9 +166,7 @@ func TestLoadAndParseConfigs(t *testing.T) {
 	}
 
 	c, err := scanConfigs(TestConfigLookupPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	for _, config := range c {
 		hydraConfig := hydra.Config{
@@ -160,7 +181,7 @@ func TestLoadAndParseConfigs(t *testing.T) {
 		_, err := hydra.Load(new(interface{}))
 		if config.MustFail {
 			// `.Load` will return an error when the parsing process fails
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 		}
 	}
 }

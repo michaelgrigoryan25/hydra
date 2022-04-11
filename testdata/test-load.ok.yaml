@@ -1,0 +1,6 @@
+int: 12345
+bool: true
+float: 1.2345
+string: "test"
+subconfig:
+  nested: "test-nested"
