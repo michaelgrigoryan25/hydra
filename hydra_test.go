@@ -189,7 +189,7 @@ func TestLoadAndParseConfigs(t *testing.T) {
 func TestLoadAndComparePartialConfig(t *testing.T) {
 	type Config struct {
 		Addr   string `yaml:"addr" validate:"required,ip_addr" env:"TESTING_ADDR"`
-		Secure bool   `yaml:"secure" validate:"required,boolean" env:"TESTING_SECURE"`
+		Secure bool   `yaml:"secure" env:"TESTING_SECURE"`
 	}
 
 	os.Setenv("TESTING_ADDR", "127.0.0.1") // for testing purposes only
