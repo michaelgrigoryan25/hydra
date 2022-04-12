@@ -34,8 +34,12 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/caarlos0/env/v6"
+	"github.com/go-playground/validator"
 	"gopkg.in/yaml.v3"
 )
+
+var validate *validator.Validate = validator.New()
 
 // This struct will initialize a new Hydra instance which will
 // take care of handling your configuration.
@@ -45,7 +49,7 @@ type Hydra struct {
 
 // This function will attempt to open, read and parse the file at the
 // provided path into YAML.
-func (h *Hydra) readAndParse(path string, dst any) error {
+func (h *Hydra) readAndParseYAML(path string, dst any) error {
 	// Opening the file in readonly mode, to not cause accidental damage
 	// to the configuration.
 	f, err := os.OpenFile(path, os.O_RDONLY, fs.ModeTemporary)
@@ -58,6 +62,16 @@ func (h *Hydra) readAndParse(path string, dst any) error {
 		return err
 	}
 
+	// Parsing the environment variables specified in the
+	// configuration struct and optionally assigning them
+	// to unspecified fields.
+	err = env.Parse(dst)
+	if err != nil {
+		return err
+	}
+
+	// Parsing the configuration from the specified YAML
+	// configuration file.
 	err = yaml.Unmarshal(c, dst)
 	if err != nil {
 		return err
@@ -75,7 +89,14 @@ func (h *Hydra) Load(dst any) (any, error) {
 		return nil, err
 	}
 
-	err = h.readAndParse(p, dst)
+	err = h.readAndParseYAML(p, dst)
+	if err != nil {
+		return nil, err
+	}
+
+	// The configuration will only be validated after being completely loaded.
+	// Validations should be made according to the documentation at: https://github.com/go-playground/validator
+	err = validate.Struct(dst)
 	if err != nil {
 		return nil, err
 	}

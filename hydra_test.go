@@ -30,6 +30,7 @@
 package hydra_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -39,6 +40,97 @@ import (
 )
 
 const TestConfigLookupPath = "testdata/"
+
+type SampleConfig struct {
+	Int       int     `yaml:"int" hydra:"env=INT_ENV_VAR"`
+	Bool      bool    `yaml:"bool" hydra:"env=BOOL_ENV_VAR"`
+	Float     float64 `yaml:"float" hydra:"env=FLOAT_ENV_VAR"`
+	String    string  `yaml:"string" hydra:"env=STRING_ENV_VAR"`
+	Subconfig struct {
+		Nested string `yaml:"nested" hydra:"env=NESTED_ENV_VAR"`
+	} `yaml:"subconfig"`
+}
+
+func TestLoadConfig(t *testing.T) {
+	h := hydra.Hydra{Config: hydra.Config{
+		Filename: "test-load.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
+	}}
+
+	expected := SampleConfig{
+		Bool:   true,
+		Int:    12345,
+		String: "test",
+		Float:  1.2345,
+		Subconfig: struct {
+			Nested string "yaml:\"nested\" hydra:\"env=NESTED_ENV_VAR\""
+		}{
+			Nested: "test-nested",
+		},
+	}
+
+	var config SampleConfig
+	_, err := h.Load(&config)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, config)
+}
+
+func TestParseEnv(t *testing.T) {
+	h := hydra.Hydra{Config: hydra.Config{
+		Filename: "test-load.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
+	}}
+
+	type ExpectedValue struct {
+		key   string
+		value any
+	}
+
+	expectedValues := []ExpectedValue{
+		{
+			value: "test",
+			key:   "STRING_ENV_VAR",
+		},
+		{
+			value: 12345,
+			key:   "INT_ENV_VAR",
+		},
+		{
+			value: 1.2345,
+			key:   "FLOAT_ENV_VAR",
+		},
+		{
+			value: true,
+			key:   "BOOL_ENV_VAR",
+		},
+		{
+			value: "test-nested",
+			key:   "NESTED_ENV_VAR",
+		},
+	}
+
+	for _, v := range expectedValues {
+		os.Setenv(v.key, fmt.Sprint(v.value))
+	}
+
+	expected := SampleConfig{
+		String: expectedValues[0].value.(string),
+		Int:    expectedValues[1].value.(int),
+		Float:  expectedValues[2].value.(float64),
+		Bool:   expectedValues[3].value.(bool),
+		Subconfig: struct {
+			Nested string "yaml:\"nested\" hydra:\"env=NESTED_ENV_VAR\""
+		}{
+			Nested: expectedValues[4].value.(string),
+		},
+	}
+
+	var config SampleConfig
+	_, err := h.Load(&config)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, config)
+}
 
 func TestLoadAndParseConfigs(t *testing.T) {
 	type EntryMetadata struct {
@@ -74,9 +166,7 @@ func TestLoadAndParseConfigs(t *testing.T) {
 	}
 
 	c, err := scanConfigs(TestConfigLookupPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	for _, config := range c {
 		hydraConfig := hydra.Config{
@@ -91,7 +181,34 @@ func TestLoadAndParseConfigs(t *testing.T) {
 		_, err := hydra.Load(new(interface{}))
 		if config.MustFail {
 			// `.Load` will return an error when the parsing process fails
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 		}
 	}
+}
+
+func TestLoadAndComparePartialConfig(t *testing.T) {
+	type Config struct {
+		Addr   string `yaml:"addr" validate:"required,ip_addr" env:"TESTING_ADDR"`
+		Secure bool   `yaml:"secure" validate:"required,boolean" env:"TESTING_SECURE"`
+	}
+
+	os.Setenv("TESTING_ADDR", "127.0.0.1") // for testing purposes only
+	os.Setenv("TESTING_SECURE", "false")   // for testing purposes only
+
+	c := hydra.Config{
+		Filename: "empty.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
+	}
+
+	h := hydra.Hydra{
+		Config: c,
+	}
+
+	d, err := h.Load(new(Config))
+	assert.NoError(t, err)
+
+	expected := &Config{Secure: false,
+		Addr: "127.0.0.1",
+	}
+	assert.Equal(t, expected, d)
 }
