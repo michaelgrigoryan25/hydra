@@ -30,17 +30,16 @@
 package hydra
 
 import (
-	"errors"
-	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
-	"reflect"
-	"strconv"
-	"strings"
 
+	"github.com/caarlos0/env/v6"
+	"github.com/go-playground/validator"
 	"gopkg.in/yaml.v3"
 )
+
+var validate *validator.Validate = validator.New()
 
 // This struct will initialize a new Hydra instance which will
 // take care of handling your configuration.
@@ -50,7 +49,7 @@ type Hydra struct {
 
 // This function will attempt to open, read and parse the file at the
 // provided path into YAML.
-func (h *Hydra) readAndParse(path string, dst any) error {
+func (h *Hydra) readAndParseYAML(path string, dst any) error {
 	// Opening the file in readonly mode, to not cause accidental damage
 	// to the configuration.
 	f, err := os.OpenFile(path, os.O_RDONLY, fs.ModeTemporary)
@@ -63,92 +62,22 @@ func (h *Hydra) readAndParse(path string, dst any) error {
 		return err
 	}
 
+	// Parsing the environment variables specified in the
+	// configuration struct and optionally assigning them
+	// to unspecified fields.
+	err = env.Parse(dst)
+	if err != nil {
+		return err
+	}
+
+	// Parsing the configuration from the specified YAML
+	// configuration file.
 	err = yaml.Unmarshal(c, dst)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-// This function will parse environment variables for the struct fields
-// which present 'env=VALUE' key-value pair in their hydra struct tag.
-func (h *Hydra) parseEnv(dst any) error {
-	dstReflection := reflect.TypeOf(dst)
-	if dstReflection.Kind() != reflect.Pointer || dstReflection.Elem().Kind() != reflect.Struct {
-		err := fmt.Sprintf("destination must be a pointer to a struct. received: %v", dstReflection.Kind().String())
-		return errors.New(err)
-	}
-
-	dstValue := reflect.ValueOf(dst).Elem()
-	fields := reflect.VisibleFields(dstValue.Type())
-
-	for _, f := range fields {
-		// Handling nested structs recursively
-		if f.Type.Kind() == reflect.Struct {
-			if err := h.parseEnv(dstValue.FieldByIndex(f.Index).Addr().Interface()); err != nil {
-				return err
-			}
-		}
-
-		if key, ok := getHydraTag(f.Tag, "env"); ok {
-			// Skipping the environment variable if it is empty
-			if keyValue := os.Getenv(key); keyValue != "" {
-				// Converting the string value to its corresponding type
-				switch f.Type.Kind() {
-				case reflect.String:
-					dstValue.FieldByIndex(f.Index).SetString(keyValue)
-				case reflect.Int:
-					value, err := strconv.ParseInt(keyValue, 10, 64)
-					if err != nil {
-						return err
-					}
-
-					dstValue.FieldByIndex(f.Index).SetInt(value)
-				case reflect.Float64, reflect.Float32:
-					value, err := strconv.ParseFloat(keyValue, 64)
-					if err != nil {
-						return err
-					}
-
-					dstValue.FieldByIndex(f.Index).SetFloat(value)
-				case reflect.Bool:
-					value, err := strconv.ParseBool(keyValue)
-					if err != nil {
-						return err
-					}
-
-					dstValue.FieldByIndex(f.Index).SetBool(value)
-				default:
-					// Defaulting to a string if the field type is not supported by reflect.
-					dstValue.FieldByIndex(f.Index).SetString(fmt.Sprint(keyValue))
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// This function checks if the given key exists, and extracts the value if there is any
-// from the struct field's hydra struct tag.
-func getHydraTag(field reflect.StructTag, tag string) (string, bool) {
-	kv := strings.Split(field.Get("hydra"), ";")
-	for _, t := range kv {
-		split := strings.Split(t, "=")
-		// Check if it is only key or a key-value pair
-		if len(split) > 1 {
-			if split[0] == tag {
-				return split[1], true
-			}
-		} else {
-			if t == tag {
-				return "", true
-			}
-		}
-	}
-
-	return "", false
 }
 
 // This function will attempt to load all configuration variables
@@ -160,12 +89,14 @@ func (h *Hydra) Load(dst any) (any, error) {
 		return nil, err
 	}
 
-	err = h.readAndParse(p, dst)
+	err = h.readAndParseYAML(p, dst)
 	if err != nil {
 		return nil, err
 	}
 
-	err = h.parseEnv(dst)
+	// The configuration will only be validated after being completely loaded.
+	// Validations should be made according to the documentation at: https://github.com/go-playground/validator
+	err = validate.Struct(dst)
 	if err != nil {
 		return nil, err
 	}

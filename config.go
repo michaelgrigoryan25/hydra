@@ -64,10 +64,12 @@ func (c *Config) findConfigPath() (string, error) {
 				return "", err
 			}
 
-			// Scanning the contents of the matched directory
-			// and returning an error if something fails.
+			// Scanning the contents of the matched directory. If the directory
+			// does not exist, skipping it and moving on to the next one. If no
+			// valid directories exist an error will be returned after quitting
+			// the loop.
 			if entries, err := os.ReadDir(absolute); err != nil {
-				return "", err
+				continue
 			} else {
 				for _, entry := range entries {
 					// We only need files, not directories, which will contain
@@ -87,6 +89,12 @@ func (c *Config) findConfigPath() (string, error) {
 					}
 				}
 			}
+		}
+
+		// If no valid configuration paths were found from the supplied
+		// list of directories.
+		if value == "" {
+			return "", errors.New("no valid configuration paths were found.")
 		}
 
 		return value, nil

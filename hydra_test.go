@@ -185,3 +185,30 @@ func TestLoadAndParseConfigs(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadAndComparePartialConfig(t *testing.T) {
+	type Config struct {
+		Addr   string `yaml:"addr" validate:"required,ip_addr" env:"TESTING_ADDR"`
+		Secure bool   `yaml:"secure" validate:"required,boolean" env:"TESTING_SECURE"`
+	}
+
+	os.Setenv("TESTING_ADDR", "127.0.0.1") // for testing purposes only
+	os.Setenv("TESTING_SECURE", "false")   // for testing purposes only
+
+	c := hydra.Config{
+		Filename: "empty.ok.yaml",
+		Paths:    []string{TestConfigLookupPath},
+	}
+
+	h := hydra.Hydra{
+		Config: c,
+	}
+
+	d, err := h.Load(new(Config))
+	assert.NoError(t, err)
+
+	expected := &Config{Secure: false,
+		Addr: "127.0.0.1",
+	}
+	assert.Equal(t, expected, d)
+}
