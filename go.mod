@@ -1,4 +1,4 @@
-module polygon.am/hydra
+module github.com/getpolygon/hydra
 
 go 1.18
 

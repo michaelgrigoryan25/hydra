@@ -35,8 +35,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getpolygon/hydra"
 	"github.com/stretchr/testify/assert"
-	"polygon.am/hydra"
 )
 
 const TestConfigLookupPath = "testdata/"
