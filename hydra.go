@@ -84,14 +84,19 @@ func (h *Hydra) readAndParseYAML(path string, dst any) error {
 // both, from the environment and the YAML configuration file,
 // which must be specified when initializing a `Hydra` struct.
 func (h *Hydra) Load(dst any) (any, error) {
+	// Getting the configuration path if it is supplied by the user.
 	p, err := h.Config.findConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
-	err = h.readAndParseYAML(p, dst)
-	if err != nil {
-		return nil, err
+	// If the configuration path was valid, provided and found parse
+	// the YAML and unmarshal the output into the destination.
+	if p != "" {
+		err := h.readAndParseYAML(p, dst)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// The configuration will only be validated after being completely loaded.

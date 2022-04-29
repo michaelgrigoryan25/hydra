@@ -30,73 +30,43 @@
 package hydra
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 )
 
-// This is the configuration struct that is going to be
+// hydra.Config is the configuration struct which is going to be
 // used by Hydra for initialization.
 type Config struct {
-	Filename string
-	Paths    []string
+	Paths []string
 }
 
 // This function will attempt to get the first usable and correct
 // path where the configuration has been specified. Will return an
 // error if something goes wrong.
 func (c *Config) findConfigPath() (string, error) {
-	// Hydra configuration must contain at least 1 configuration path.
-	if len(c.Paths) == 0 {
-		err := fmt.Sprintf("must specify at least 1 config search path. found: %v", len(c.Paths))
-		return "", errors.New(err)
-	} else {
-		var value string
+	// In this part, we are looping through all the provided
+	// configuration Paths, in search of the first valid path.
+	for _, path := range c.Paths {
+		path = filepath.Clean(path) // cleaning the path from various redundancies.
+		dir, file := filepath.Split(path)
 
-		// In this part, we are looping through all the provided
-		// configuration Paths, in search of the first valid path.
-		for _, path := range c.Paths {
-			// Getting the absolute path of the configuration and
-			// returning an error if something fails.
-			absolute, err := filepath.Abs(path)
-			if err != nil {
-				return "", err
-			}
-
-			// Scanning the contents of the matched directory. If the directory
-			// does not exist, skipping it and moving on to the next one. If no
-			// valid directories exist an error will be returned after quitting
-			// the loop.
-			if entries, err := os.ReadDir(absolute); err != nil {
-				continue
-			} else {
-				for _, entry := range entries {
-					// We only need files, not directories, which will contain
-					// the filename, specified by the user. Skipping the ones
-					// that do not match this criteria.
-					if entry.Type().IsRegular() && entry.Name() == c.Filename {
-						// Getting the full path of the configuration file
-						path, err := filepath.Abs(filepath.Join(absolute, entry.Name()))
-						if err != nil {
-							return "", err
-						}
-
-						// Value will be a valid string, since the error is
-						// handled before return.
-						value = path
-						break
-					}
+		// Scanning all the files in all the directories provided by
+		// the user, and checking file/folder entries.
+		if entries, err := os.ReadDir(dir); err != nil {
+			continue
+		} else {
+			for _, i := range entries {
+				// Since we only need files and not folders, we can break the loop
+				// from here and move forward.
+				if i.Type().IsRegular() && i.Name() == file {
+					return path, nil
 				}
 			}
 		}
-
-		// If no valid configuration paths were found from the supplied
-		// list of directories.
-		if value == "" {
-			return "", errors.New("no valid configuration paths were found.")
-		}
-
-		return value, nil
 	}
+
+	// If nothing was matched, or the user did not provide any
+	// search paths, defaulting to an empty string and moving on
+	// to parsing the environment variables.
+	return "", nil
 }

@@ -53,8 +53,7 @@ type SampleConfig struct {
 
 func TestLoadConfig(t *testing.T) {
 	h := hydra.Hydra{Config: hydra.Config{
-		Filename: "test-load.ok.yaml",
-		Paths:    []string{TestConfigLookupPath},
+		Paths: []string{TestConfigLookupPath + "test-load.ok.yaml"},
 	}}
 
 	expected := SampleConfig{
@@ -77,8 +76,7 @@ func TestLoadConfig(t *testing.T) {
 
 func TestParseEnv(t *testing.T) {
 	h := hydra.Hydra{Config: hydra.Config{
-		Filename: "test-load.ok.yaml",
-		Paths:    []string{TestConfigLookupPath},
+		Paths: []string{TestConfigLookupPath + "test-load.ok.yaml"},
 	}}
 
 	type ExpectedValue struct {
@@ -170,8 +168,7 @@ func TestLoadAndParseConfigs(t *testing.T) {
 
 	for _, config := range c {
 		hydraConfig := hydra.Config{
-			Filename: config.Filename,
-			Paths:    []string{TestConfigLookupPath}, // `testdata/`
+			Paths: []string{TestConfigLookupPath + config.Filename}, // `testdata/`
 		}
 
 		hydra := hydra.Hydra{
@@ -196,8 +193,7 @@ func TestLoadAndComparePartialConfig(t *testing.T) {
 	os.Setenv("TESTING_SECURE", "false")   // for testing purposes only
 
 	c := hydra.Config{
-		Filename: "empty.ok.yaml",
-		Paths:    []string{TestConfigLookupPath},
+		Paths: []string{TestConfigLookupPath + "empty.ok.yaml"},
 	}
 
 	h := hydra.Hydra{
