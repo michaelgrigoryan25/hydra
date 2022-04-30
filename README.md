@@ -7,7 +7,7 @@ Hydra is a hybrid configuration management library for Go, created for simplicit
 
 ## Why?
 
-In testing environments, you might not want to have separate configuration files for each one of your tests. Moreover, using more mature configuration libraries such as [Viper](https://github.com/spf13/viper), it is virtually impossible to write tests that use configuration files, since they have to be in a directory different than your project root, which honestly, makes stuff messy.
+In testing environments, you might not want to have separate configuration files for each one of your tests. Moreover, when using more mature configuration libraries such as [Viper](https://github.com/spf13/viper), it is virtually impossible to write tests which use configuration files, since they have to be in a directory different than your project root, which honestly, makes stuff messy.
 
 For this reason, we created Hydra, which will read, load, and fill in the blanks of the incomplete YAML configuration using environment variables. Think of it this way, if a YAML file does not exist, then Hydra will attempt to load the configuration using environment variables, optionally defined in your schema. However, if a configuration file was found, but has missing fields, Hydra will optionally fill in those fields with the values loaded from the environment.
 
