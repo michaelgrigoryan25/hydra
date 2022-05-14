@@ -52,9 +52,7 @@ func (c *Config) findConfigPath() (string, error) {
 
 		// Scanning all the files in all the directories provided by
 		// the user, and checking file/folder entries.
-		if entries, err := os.ReadDir(dir); err != nil {
-			continue
-		} else {
+		if entries, err := os.ReadDir(dir); err == nil {
 			for _, i := range entries {
 				// Since we only need files and not folders, we can break the loop
 				// from here and move forward.

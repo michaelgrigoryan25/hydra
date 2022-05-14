@@ -65,16 +65,16 @@ func (h *Hydra) readAndParseYAML(path string, dst any) error {
 	// Parsing the environment variables specified in the
 	// configuration struct and optionally assigning them
 	// to unspecified fields.
-	err = env.Parse(dst)
-	if err != nil {
+	if err := env.Parse(dst); err != nil {
 		return err
 	}
 
-	// Parsing the configuration from the specified YAML
-	// configuration file.
-	err = yaml.Unmarshal(c, dst)
-	if err != nil {
-		return err
+	if path != "" {
+		// Only parsing the configuration from the specified YAML
+		// configuration file if a path was specified and matched.
+		if err := yaml.Unmarshal(c, dst); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -93,16 +93,14 @@ func (h *Hydra) Load(dst any) (any, error) {
 	// If the configuration path was valid, provided and found parse
 	// the YAML and unmarshal the output into the destination.
 	if p != "" {
-		err := h.readAndParseYAML(p, dst)
-		if err != nil {
+		if err := h.readAndParseYAML(p, dst); err != nil {
 			return nil, err
 		}
 	}
 
 	// The configuration will only be validated after being completely loaded.
 	// Validations should be made according to the documentation at: https://github.com/go-playground/validator
-	err = validate.Struct(dst)
-	if err != nil {
+	if err := validate.Struct(dst); err != nil {
 		return nil, err
 	}
 
